@@ -1,5 +1,7 @@
 # Same-origin balance proxy: investigation and deployment
 
+The original CORS investigation below is historical. For current endpoint configuration, production error classification, and server-only free-provider secrets, see [production-rpc.md](production-rpc.md).
+
 ## Finding and scope of the fix
 
 Chrome's reported `Access-Control-Allow-Origin: backend_traffic` is invalid. That header must identify an allowed serialized origin (or use the permitted wildcard); `backend_traffic` is not a web origin. A `file://` document normally sends `Origin: null`, which can itself be rejected by an RPC provider, but HTTP hosting alone cannot repair an invalid allow-origin response header. We cannot determine from the error alone whether the header originates at the Solana provider, its load balancer, or another intermediary. The exact OPTIONS response/headers on the user's network, compared with another network, would be needed to attribute that layer. No attribution is invented here.
@@ -35,12 +37,12 @@ The UI, scoring thresholds, ranks, and all 120 roasts remain as before. Only tra
 - Only `POST /api/balance` with `application/json` and exactly `{ "address": "..." }` is supported.
 - Validates 32-byte base58 addresses in both client and server; limits request body bytes to 256. No arbitrary methods, target URLs, batches, wallet signatures, or transactions.
 - Rejects `Origin: null`, foreign origins, and cross-site Fetch Metadata. Non-browser clients without Origin remain possible: these checks are not authentication or a comprehensive bot/rate limiter.
-- Fixed upstream `https://api.mainnet-beta.solana.com`; redirects are rejected. No incoming auth, cookies, or origin headers are forwarded.
+- Upstream is fixed by server configuration, never by callers; the current official default is `https://api.mainnet.solana.com/`. The legacy endpoint and supported free-provider mainnet routes can be explicitly configured (see the production runbook). Redirects are rejected. No incoming auth, cookies, or origin headers are forwarded.
 - One upstream call, 8-second timeout, no automatic retries or fallback providers. Client timeout is 12 seconds.
 - Every API response has `Cache-Control: no-store`; addresses are in JSON POST bodies, not query strings. No app-level persistence or address logging. Worker observability is disabled in configuration; hosting/RPC providers may independently retain metadata.
 - Upstream HTTP/JSON-RPC rate limits become HTTP 429 with a conservative 60-second retry hint. Upstream 403 becomes a readable 503 operator-access error. Other bad responses/network failures become 502; timeout becomes 504. Error bodies are sanitized; no raw provider payloads are exposed.
 - Only a safe nonnegative integer lamport value is returned in the existing result envelope. Unsafe numbers are rejected rather than rounded, matching existing behavior. Public high-balance exchange accounts can exceed JavaScript's safe integer range; supporting these exactly requires a separate lossless JSON-number change.
-- No keys are required or configured. If a private provider is authorized later, its credentials must be stored server-side, never in `VITE_*`, frontend source, or committed files. No such provider has been added.
+- No keys are required or configured by default. Optional free-provider credentials are supported only through the server-side `SOLANA_RPC_URL` secret, never `VITE_*`, frontend source, or committed files. No provider account/key has been created.
 
 ## Recommended free host: Cloudflare Workers with static assets
 
