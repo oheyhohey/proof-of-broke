@@ -1,0 +1,42 @@
+{
+  "time": "2026-10-24T12:31:50.607Z",
+  "mocked": false,
+  "origin": "http://localhost:8787",
+  "address": "So11111111111111111111111111111111111111112",
+  "requests": [
+    {
+      "url": "https://api.mainnet-beta.solana.com/",
+      "method": "POST"
+    },
+    {
+      "url": "http://localhost:8787/api/balance",
+      "method": "POST"
+    }
+  ],
+  "responses": [
+    {
+      "url": "http://localhost:8787/api/balance",
+      "status": 502,
+      "headers": {
+        "transfer-encoding": "chunked",
+        "cache-control": "no-store",
+        "content-encoding": "gzip",
+        "content-type": "application/json",
+        "x-content-type-options": "nosniff"
+      }
+    }
+  ],
+  "failures": [
+    {
+      "url": "https://api.mainnet-beta.solana.com/",
+      "error": {
+        "errorText": "net::ERR_TUNNEL_CONNECTION_FAILED"
+      }
+    }
+  ],
+  "directFromHTTP": {
+    "error": "TypeError: Failed to fetch"
+  },
+  "proxyUIError": "Could not read a valid balance from Solana RPC. Check server connectivity and retry. No balance was assumed.",
+  "resultCount": 0
+}
