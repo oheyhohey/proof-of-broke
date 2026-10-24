@@ -124,4 +124,59 @@ describeBrowser('HTTP browser → real proxy handler → test-only HTTP upstream
     expect(await page.getByRole('alert').innerText()).toContain('rate-limiting');expect(await page.locator('.score').count()).toBe(0);
     expect(runtimeErrors).toEqual([]);await page.close();
   },20000);
+  it.each([
+    { name: 'desktop', width: 1280, height: 900, touch: false },
+    { name: 'mobile', width: 390, height: 844, touch: true },
+  ])('one $name Roast Again interaction does not resubmit the focused wallet form', async ({ width, height, touch }) => {
+    limited = false;
+    calls = 0;
+    const context = await browser.newContext({ viewport: { width, height }, isMobile: touch, hasTouch: touch });
+    const page = await context.newPage();
+    try {
+      await page.goto(origin);
+      await page.locator('#wallet').fill('So11111111111111111111111111111111111111112');
+      await page.getByRole('button', { name: 'Roast my wallet' }).click();
+      await page.locator('.result-section').waitFor();
+      // Start observing only after the successful analysis, like a cleared Network log.
+      const requests: string[] = [];
+      const navigations: string[] = [];
+      page.on('request', request => requests.push(new URL(request.url()).pathname));
+      page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations.push(frame.url()); });
+      const before = await page.locator('blockquote').innerText();
+      const snapshot = await page.locator('.result-top').innerText();
+      await page.locator('#wallet').focus();
+      await page.evaluate(() => {
+        const section = document.querySelector('.result-section')!;
+        const state = { submits: [] as string[], clicks: [] as string[], removed: false };
+        Object.assign(window, { singleRoastTest: state });
+        document.addEventListener('submit', event => state.submits.push(event.submitter?.textContent ?? ''), true);
+        document.addEventListener('click', event => {
+          state.clicks.push((event.target as Element).closest('button')?.textContent ?? '');
+        }, true);
+        new MutationObserver(records => {
+          if (records.some(record => [...record.removedNodes].some(node => node === section || node.contains(section)))) state.removed = true;
+        }).observe(document.getElementById('root')!, { childList: true, subtree: true });
+      });
+      const button = page.getByRole('button', { name: 'Roast again' });
+      expect(await button.evaluate(node => (node as HTMLButtonElement).form)).toBeNull();
+      // Real pointer/touch events, with no forced click or direct handler invocation.
+      if (touch) await button.tap();
+      else await button.click();
+      // Catch a delayed analysis response too (the reported production request took 258 ms).
+      await page.waitForTimeout(600);
+      expect(requests).toEqual([]);
+      expect(calls).toBe(1);
+      expect(navigations).toEqual([]);
+      expect(await page.evaluate(() => (window as unknown as {
+        singleRoastTest: { submits: string[]; clicks: string[]; removed: boolean };
+      }).singleRoastTest)).toEqual({ submits: [], clicks: ['↻ Roast again'], removed: false });
+      expect(await page.locator('blockquote').innerText()).not.toBe(before);
+      expect(await page.locator('.score').innerText()).toBe('65');
+      expect(await page.locator('.balance').innerText()).toContain('0.123456789');
+      expect(await page.locator('.result-top').innerText()).toBe(snapshot);
+      expect(await page.locator('#wallet').inputValue()).toBe('So11111111111111111111111111111111111111112');
+    } finally {
+      await context.close();
+    }
+  }, 15000);
 });
