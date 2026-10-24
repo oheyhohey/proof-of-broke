@@ -12,7 +12,7 @@ describe('restricted same-origin balance proxy', () => {
     const response=await handleBalance(request(),fetcher);
     expect(response.status).toBe(200); expect(await response.json()).toEqual({jsonrpc:'2.0',id:1,result:{value:123456789}});
     expect(fetcher).toHaveBeenCalledOnce(); const [url,options]=fetcher.mock.calls[0];
-    expect(url).toBe(MAINNET_RPC);expect(options.method).toBe('POST');expect(options.redirect).toBe('error');
+    expect(url).toBe(MAINNET_RPC);expect(options.method).toBe('POST');expect(options.redirect).toBe('manual');
     expect(JSON.parse(options.body)).toEqual({jsonrpc:'2.0',id:1,method:'getBalance',params:[address,{commitment:'confirmed'}]});
     expect(options.headers).toEqual({'Content-Type':'application/json'});
     expect(response.headers.get('Cache-Control')).toBe('no-store');

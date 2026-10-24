@@ -71,12 +71,14 @@ export async function handleBalance(request: Request, fetcher: typeof fetch = fe
     const upstream = await fetcher(config.url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address, { commitment: 'confirmed' }] }),
-      signal: controller.signal, redirect: 'error',
+      // Workers does not support 'error'. Never follow a credential-bearing redirect.
+      signal: controller.signal, redirect: 'manual',
     });
     stage = 'http';
     details.upstreamStatus = upstream.status;
     details.contentType = classifyContentType(upstream.headers.get('Content-Type'));
     // Never forward upstream headers, bodies, exception text, or credential-bearing URLs.
+    if (upstream.status >= 300 && upstream.status < 400) return fail(502, 'RPC_HTTP_ERROR', 'Solana RPC returned an unsuccessful HTTP response. Try again later.');
     if (upstream.status === 429) return fail(429, 'RPC_RATE_LIMIT', 'Solana RPC is rate-limiting requests. Wait a minute and retry.', { 'Retry-After': '60' });
     if (upstream.status === 401) return fail(503, 'RPC_AUTH_ERROR', 'The RPC provider rejected server credentials. The operator must check the Worker secret.');
     if (upstream.status === 403) return fail(503, 'RPC_ACCESS_DENIED', 'Solana RPC denied server access. The operator must check its upstream network/provider access.');
