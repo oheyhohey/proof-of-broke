@@ -1,0 +1,27 @@
+{
+  "time": "2026-10-24T12:09:39.710Z",
+  "address": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+  "mocked": false,
+  "requests": [
+    {
+      "url": "https://api.mainnet-beta.solana.com/",
+      "method": "POST",
+      "body": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getBalance\",\"params\":[\"9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM\",{\"commitment\":\"confirmed\"}]}"
+    }
+  ],
+  "responses": [],
+  "failures": [
+    {
+      "url": "https://api.mainnet-beta.solana.com/",
+      "failure": {
+        "errorText": "net::ERR_TUNNEL_CONNECTION_FAILED"
+      }
+    }
+  ],
+  "console": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED"
+  ],
+  "visibleError": "Could not reach Solana RPC. A connection issue, CORS policy, or public RPC restriction may be blocking access. No balance was assumed.",
+  "balance": null
+}
