@@ -23,15 +23,23 @@ export function lamportsToSol(lamports: number): string {
   return `${amount / 1_000_000_000n}${fraction ? `.${fraction}` : ''}`;
 }
 export const shortAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
-export const RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
+export const RPC_ENDPOINT = '/api/balance';
 export async function getBalance(address: string, fetcher: typeof fetch = fetch): Promise<number> {
   if (!isValidAddress(address)) throw new Error('Enter a valid Solana public address (32-byte base58).');
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') throw new Error('Balance checks require the full application at an HTTP or HTTPS URL. A downloaded HTML file is a visual preview only.');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {
-    const response = await fetcher(RPC_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getBalance', params: [address, { commitment: 'confirmed' }] }), signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    const response = await fetcher(RPC_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ address }), signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (response.status === 429) throw new Error('The public Solana RPC is rate-limiting requests. Wait a minute, then try again.');
-    if (!response.ok) throw new Error(`Solana RPC returned HTTP ${response.status}. Public access may be restricted. Try again later.`);
+    if (!response.ok) {
+      let message = `Balance service returned HTTP ${response.status}. Ensure the app is served with its /api/balance endpoint and try again later.`;
+      try {
+        const body = await response.json();
+        if (typeof body?.error === 'string' && body.error.length <= 300) message = body.error;
+      } catch { /* A static host or gateway can return HTML instead of JSON. */ }
+      throw new Error(message);
+    }
     const data = await response.json();
     if (data?.error) {
       if (data.error.code === 429 || data.error.code === -32005) throw new Error('Solana RPC is busy or rate-limiting requests. Try again in a minute.');
@@ -43,7 +51,8 @@ export async function getBalance(address: string, fetcher: typeof fetch = fetch)
     return value;
   } catch (error) {
     if (controller.signal.aborted) throw new Error('Solana took too long to respond. Try again.');
-    if (error instanceof TypeError) throw new Error('Could not reach Solana RPC. A connection issue, CORS policy, or public RPC restriction may be blocking access. No balance was assumed.');
+    if (error instanceof SyntaxError) throw new Error('The balance endpoint returned an invalid response. Run the full app server, not a static-only preview. No balance was assumed.');
+    if (error instanceof TypeError) throw new Error('Could not reach the balance service. Open the application through its HTTP or HTTPS server; downloaded file previews cannot check balances. No balance was assumed.');
     throw error;
   } finally { clearTimeout(timer); }
 }

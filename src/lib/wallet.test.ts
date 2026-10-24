@@ -17,11 +17,12 @@ describe('real balance transport', () => {
     expect(await getBalance(address, fetcher)).toBe(0);
     expect(fetcher).toHaveBeenCalledOnce();
     const [url, request] = fetcher.mock.calls[0];
-    expect(url).toBe('https://api.mainnet-beta.solana.com');
-    expect(JSON.parse(request.body)).toEqual({jsonrpc:'2.0',id:1,method:'getBalance',params:[address,{commitment:'confirmed'}]});
+    expect(url).toBe('/api/balance');
+    expect(JSON.parse(request.body)).toEqual({address});
+    expect(request.credentials).toBe('omit');
   });
   it('explains HTTP rate limits', async () => { await expect(getBalance(address, vi.fn().mockResolvedValue(new Response('', {status:429})))).rejects.toThrow('rate-limiting'); });
-  it('explains connection and CORS failures', async () => { await expect(getBalance(address, vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))).rejects.toThrow('CORS'); });
+  it('explains balance-service connection failures', async () => { await expect(getBalance(address, vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))).rejects.toThrow('HTTP or HTTPS'); });
   it.each([undefined, null, -1, '123', 0.1, Number.MAX_SAFE_INTEGER + 1])('never substitutes a balance for invalid RPC value %s', async value => { await expect(getBalance(address, vi.fn().mockResolvedValue(rpcResponse(value)))).rejects.toThrow(); });
   it('handles JSON-RPC errors', async () => { const response = new Response(JSON.stringify({error:{code:-32005}})); await expect(getBalance(address,vi.fn().mockResolvedValue(response))).rejects.toThrow('rate-limiting'); });
   it('rejects unrelated response IDs', async () => { await expect(getBalance(address,vi.fn().mockResolvedValue(new Response(JSON.stringify({jsonrpc:'2.0',id:2,result:{value:0}}))))).rejects.toThrow('Unexpected RPC'); });
@@ -33,4 +34,19 @@ describe('real balance transport', () => {
       await vi.advanceTimersByTimeAsync(12_000); await promise;
     } finally { vi.useRealTimers(); }
   });
+});
+
+it('surfaces a sanitized server connectivity error', async () => {
+  await expect(getBalance(address, vi.fn().mockResolvedValue(new Response(JSON.stringify({error:'Solana RPC denied server access.'}),{status:503})))).rejects.toThrow('denied server access');
+});
+it('explains a static-only server returning HTML instead of the API', async () => {
+  await expect(getBalance(address,vi.fn().mockResolvedValue(new Response('<!doctype html>')))).rejects.toThrow('full app server');
+});
+it('rejects file previews explicitly before a request', async () => {
+  vi.stubGlobal('window', {location:{protocol:'file:'}});
+  const fetcher = vi.fn();
+  try {
+    await expect(getBalance(address,fetcher)).rejects.toThrow('visual preview only');
+    expect(fetcher).not.toHaveBeenCalled();
+  } finally { vi.unstubAllGlobals(); }
 });
